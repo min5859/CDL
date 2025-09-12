@@ -1,0 +1,14 @@
+openai
+streamlit
+langchain_core
+langchain_community
+langgraph
+faiss-cpu
+streamlit-ace
+streamlit_ace
+wavedrom
+CairoSVG
+cairosvg
+cairosvg
+streamlit-aggrid
+streamlit-tree-select
