@@ -6,6 +6,7 @@ from TabMemoryFootprint import TabMemoryFootprint
 from TabGPTChatbot import TabGPTChatbot
 from CameraChatbotMistral7b import CameraChatbotMistral7b
 from TabFunctionMap import TabFunctionMap
+from TabImageViewer import TabImageViewer
 
 # 페이지 설정
 st.set_page_config(
@@ -22,6 +23,7 @@ TABS = {
     "Function Map Loader": TabFunctionMap,
     "GPT Chatbot": TabGPTChatbot,
     "OpenSource Chatbot": CameraChatbotMistral7b,
+    "Image Viewer": TabImageViewer,
 }
 
 #st.title("CDL")
