@@ -12,3 +12,5 @@ cairosvg
 cairosvg
 streamlit-aggrid
 streamlit-tree-select
+numpy
+opencv-python-headless

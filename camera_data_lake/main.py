@@ -6,6 +6,7 @@ from TabMemoryFootprint import TabMemoryFootprint
 from TabGPTChatbot import TabGPTChatbot
 from CameraChatbotMistral7b import CameraChatbotMistral7b
 from TabFunctionMap import TabFunctionMap
+from TabImageViewer import TabImageViewer
 
 # 페이지 설정
 st.set_page_config(
@@ -14,13 +15,16 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="auto"
 )
-# 사이드바를 렌더링하고 선택된 탭 반환
-str_td = "타이밍 다이어그램"
-str_mf = "메모리"
-str_fm = "Function Map Loader"
-str_cb_gpt = "GPT Chatbot"
-str_cb_os = "OpenSource Chatbot"
-tabs = [str_td,str_mf,str_fm,str_cb_gpt,str_cb_os]
+
+# Tab definitions
+TABS = {
+    "타이밍 다이어그램": TabTimingDiagram,
+    "메모리": TabMemoryFootprint,
+    "Function Map Loader": TabFunctionMap,
+    "GPT Chatbot": TabGPTChatbot,
+    "OpenSource Chatbot": CameraChatbotMistral7b,
+    "Image Viewer": TabImageViewer,
+}
 
 #st.title("CDL")
 
@@ -31,29 +35,10 @@ sidebar = Sidebar(base_dir=".")
 if 'current_tab_key' not in st.session_state:
     st.session_state['current_tab_key'] = 'tab1'  # 기본값은 tab1
 
-selected_tab = sidebar.render(tabs, st.session_state['current_tab_key'])
+selected_tab = sidebar.render(list(TABS.keys()), st.session_state['current_tab_key'])
 
-# 탭1: 타이밍 다이어그램
-if selected_tab == tabs[0]:
-    tab1 = TabTimingDiagram()
-    tab1.render()
-
-# 탭2: 메모리 데이터
-elif selected_tab == tabs[1]:
-    tab2 = TabMemoryFootprint()
-    tab2.render()
-
-# Function Map Loader 탭 추가
-elif selected_tab == tabs[2]:
-    tab_function_map = TabFunctionMap()
-    tab_function_map.render()
-
-# 탭3: GPT Chatbot
-elif selected_tab == tabs[3]:
-    tab3 = TabGPTChatbot()
-    tab3.render()
-
-# Camera Chatbot Mistral 7B 탭 추가
-elif selected_tab == tabs[4]:
-    chatbot = CameraChatbotMistral7b()
-    chatbot.render()
+# Render the selected tab
+if selected_tab in TABS:
+    tab_class = TABS[selected_tab]
+    tab_instance = tab_class()
+    tab_instance.render()
