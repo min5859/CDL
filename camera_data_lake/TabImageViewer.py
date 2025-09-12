@@ -58,19 +58,6 @@ def decode_yuv(data, width, height, stride, conversion_code):
         rgb = cv2.cvtColor(yuv_cropped, conversion_code)
     return rgb
 
-def decode_nv12(data, width, height, stride):
-    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_NV12)
-
-def decode_nv21(data, width, height, stride):
-    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_NV21)
-
-def decode_i420(data, width, height, stride):
-    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_I420)
-
-def decode_yuyv(data, width, height, stride):
-    # For YUYV, OpenCV uses the YUY2 code
-    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_YUY2)
-
 def decode_yuv422_sp(data, width, height, stride, conversion_code):
     effective_stride = stride if stride > 0 else width
     yuv_size = effective_stride * height * 2 # Y plane (h*w) + UV plane (h*w)
@@ -84,16 +71,29 @@ def decode_yuv422_sp(data, width, height, stride, conversion_code):
     rgb = cv2.cvtColor(yuv_cropped, conversion_code)
     return rgb
 
-def decode_nv16(data, width, height, stride):
-    return decode_yuv422_sp(data, width, height, stride, cv2.COLOR_YUV2RGB_NV16)
-
-def decode_nv61(data, width, height, stride):
-    return decode_yuv422_sp(data, width, height, stride, cv2.COLOR_YUV2RGB_NV61)
+def decode_i420(data, width, height, stride):
+    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_I420)
 
 def decode_yv12(data, width, height, stride):
     # YV12 is YUV420 Planar, with V plane before U plane.
     # The memory layout is compatible with what decode_yuv expects for 420 formats.
     return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_YV12)
+
+def decode_nv12(data, width, height, stride):
+    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_NV12)
+
+def decode_nv21(data, width, height, stride):
+    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_NV21)
+
+def decode_yuyv(data, width, height, stride):
+    # For YUYV, OpenCV uses the YUY2 code
+    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_YUY2)
+
+def decode_nv16(data, width, height, stride):
+    return decode_yuv422_sp(data, width, height, stride, cv2.COLOR_YUV2RGB_NV16)
+
+def decode_nv61(data, width, height, stride):
+    return decode_yuv422_sp(data, width, height, stride, cv2.COLOR_YUV2RGB_NV61)
 
 def decode_yuv444(data, width, height, stride):
     effective_stride = stride if stride > 0 else width
@@ -110,14 +110,17 @@ def decode_yuv444(data, width, height, stride):
 # Dictionary to map format strings to decoding functions
 DECODING_FUNCTIONS = {
     "RAW10": decode_raw10,
-    "NV12": decode_nv12,
-    "NV21": decode_nv21,
-    "NV16": decode_nv16,
-    "NV61": decode_nv61,
-    "I420": decode_i420,
-    "YV12": decode_yv12,
-    "YUYV": decode_yuyv,
-    "YUV444": decode_yuv444,
+    # YUV420 Formats
+    "I420": decode_i420,   # Planar
+    "YV12": decode_yv12,   # Planar (V plane before U)
+    "NV12": decode_nv12,   # Semi-Planar
+    "NV21": decode_nv21,   # Semi-Planar (V and U swapped)
+    # YUV422 Formats
+    "YUYV": decode_yuyv,   # Packed
+    "NV16": decode_nv16,   # Semi-Planar
+    "NV61": decode_nv61,   # Semi-Planar (V and U swapped)
+    # YUV444 Formats
+    "YUV444": decode_yuv444, # Planar
 }
 
 class TabImageViewer:
