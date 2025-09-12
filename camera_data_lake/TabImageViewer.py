@@ -95,6 +95,108 @@ def decode_nv16(data, width, height, stride):
 def decode_nv61(data, width, height, stride):
     return decode_yuv422_sp(data, width, height, stride, cv2.COLOR_YUV2RGB_NV61)
 
+def decode_nv20(data, width, height, stride):
+    """
+    Decodes NV20 format (10-bit YUV 4:2:2 semi-planar).
+    This function adapts the P010/P012 logic (10-bit data in 16-bit words)
+    to the NV16 (4:2:2) memory layout.
+    """
+    effective_stride = stride if stride > 0 else width
+
+    # NV16 (8-bit 4:2:2) has a shape of (height*2, stride).
+    # NV20 is the 10-bit version, so samples are 16-bit words.
+    # Total size = height * stride * 2 (for Y+UV planes) * 2 (bytes per sample)
+    expected_size = int(height * 2 * effective_stride * 2)
+
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for NV20. Expected at least {expected_size}, got {len(data)} bytes.")
+        return None
+
+    # Create a numpy array from the raw data, interpreting it as uint16
+    yuv_16bit = np.frombuffer(data[:expected_size], dtype=np.uint16)
+    yuv_16bit = yuv_16bit.reshape((height * 2, effective_stride))
+
+    # Crop to actual width if stride is larger
+    if effective_stride > width:
+        yuv_16bit = yuv_16bit[:, :width]
+
+    # Convert 10-bit data (in 16-bit words) to 8-bit data by right-shifting by 2.
+    yuv_8bit = (yuv_16bit >> 2).astype(np.uint8)
+
+    # Now we have an 8-bit NV16-like buffer, which can be converted to RGB.
+    rgb = cv2.cvtColor(yuv_8bit, cv2.COLOR_YUV2RGB_NV16)
+    return rgb
+
+def decode_nv24(data, width, height, stride):
+    """
+    Decodes NV24 format (8-bit YUV 4:4:4 semi-planar, Y-plane followed by interleaved UV plane).
+    This is done by de-interleaving the UV plane and using the I444 (planar) converter.
+    """
+    effective_stride = stride if stride > 0 else width
+    y_size = effective_stride * height
+    uv_size = effective_stride * height * 2 # Full-size U and V planes, interleaved
+    expected_size = y_size + uv_size
+
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for NV24. Expected at least {expected_size}, got {len(data)} bytes.")
+        return None
+
+    yuv_data = np.frombuffer(data[:expected_size], dtype=np.uint8)
+
+    y_plane = yuv_data[:y_size].reshape(height, effective_stride)
+    uv_plane = yuv_data[y_size:].reshape(height, effective_stride * 2)
+
+    # Crop to actual width if stride is larger
+    if effective_stride > width:
+        y_plane = y_plane[:, :width]
+        uv_plane = uv_plane[:, :width*2]
+
+    # De-interleave UV plane
+    u_plane = uv_plane[:, 0::2]
+    v_plane = uv_plane[:, 1::2]
+
+    # Stack the Y, U, V planes to create a planar I444 image
+    yuv_planar = np.vstack([y_plane, u_plane, v_plane])
+
+    # Convert from I444 (YUV444 Planar) to RGB
+    rgb = cv2.cvtColor(yuv_planar, cv2.COLOR_YUV2RGB_I444)
+    return rgb
+
+def decode_nv42(data, width, height, stride):
+    """
+    Decodes NV42 format (8-bit YUV 4:4:4 semi-planar, Y-plane followed by interleaved VU plane).
+    This is the U/V swapped version of NV24.
+    """
+    effective_stride = stride if stride > 0 else width
+    y_size = effective_stride * height
+    vu_size = effective_stride * height * 2
+    expected_size = y_size + vu_size
+
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for NV42. Expected at least {expected_size}, got {len(data)} bytes.")
+        return None
+
+    yuv_data = np.frombuffer(data[:expected_size], dtype=np.uint8)
+
+    y_plane = yuv_data[:y_size].reshape(height, effective_stride)
+    vu_plane = yuv_data[y_size:].reshape(height, effective_stride * 2)
+
+    # Crop to actual width if stride is larger
+    if effective_stride > width:
+        y_plane = y_plane[:, :width]
+        vu_plane = vu_plane[:, :width*2]
+
+    # De-interleave VU plane (V is first, U is second)
+    v_plane = vu_plane[:, 0::2]
+    u_plane = vu_plane[:, 1::2]
+
+    # Stack the Y, U, V planes to create a planar I444 image
+    yuv_planar = np.vstack([y_plane, u_plane, v_plane])
+
+    # Convert from I444 (YUV444 Planar) to RGB
+    rgb = cv2.cvtColor(yuv_planar, cv2.COLOR_YUV2RGB_I444)
+    return rgb
+
 def decode_yuv444(data, width, height, stride):
     effective_stride = stride if stride > 0 else width
     yuv_size = effective_stride * height * 3
@@ -107,6 +209,81 @@ def decode_yuv444(data, width, height, stride):
     rgb = cv2.cvtColor(yuv_cropped, cv2.COLOR_YUV2RGB_I444)
     return rgb
 
+def decode_p010(data, width, height, stride):
+    """
+    Decodes P010 format (10-bit YUV 4:2:0 semi-planar).
+    The 10-bit samples are stored in 16-bit words (low-endian).
+    This function converts the P010 data to 8-bit NV12-like data and then uses
+    the existing NV12 to RGB conversion.
+    """
+    effective_stride = stride if stride > 0 else width
+
+    # P010 is 10-bit data in 16-bit words, so 2 bytes per component.
+    # Y plane size: height * effective_stride * 2 bytes
+    # UV plane size: (height / 2) * effective_stride * 2 bytes
+    # Total size: 1.5 * height * effective_stride * 2 bytes
+    expected_size = int(height * 3 / 2 * effective_stride * 2)
+
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for P010. Expected at least {expected_size} bytes, but got {len(data)} bytes.")
+        return None
+
+    # Create a numpy array from the raw data, interpreting it as uint16
+    # The data is little-endian by default which is what P010 usually is.
+    yuv_16bit = np.frombuffer(data[:expected_size], dtype=np.uint16)
+
+    # Reshape to semi-planar format
+    yuv_16bit = yuv_16bit.reshape((height * 3 // 2, effective_stride))
+
+    # Crop to actual width if stride is larger
+    if effective_stride > width:
+        yuv_16bit = yuv_16bit[:, :width]
+
+    # Convert 10-bit data (in 16-bit words) to 8-bit data by right-shifting by 2.
+    # This creates an 8-bit NV12-like image.
+    yuv_8bit = (yuv_16bit >> 2).astype(np.uint8)
+
+    # Use OpenCV to convert from NV12 (which is what yuv_8bit now is) to RGB
+    rgb = cv2.cvtColor(yuv_8bit, cv2.COLOR_YUV2RGB_NV12)
+
+    return rgb
+
+def decode_p012(data, width, height, stride):
+    """
+    Decodes P012 format (12-bit YUV 4:2:0 semi-planar).
+    The 12-bit samples are stored in 16-bit words (low-endian).
+    This function converts the P012 data to 8-bit NV12-like data and then uses
+    the existing NV12 to RGB conversion.
+    """
+    effective_stride = stride if stride > 0 else width
+
+    # P012 is 12-bit data in 16-bit words, so 2 bytes per component.
+    # Total size is calculated the same way as P010.
+    expected_size = int(height * 3 / 2 * effective_stride * 2)
+
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for P012. Expected at least {expected_size} bytes, but got {len(data)} bytes.")
+        return None
+
+    # Create a numpy array from the raw data, interpreting it as uint16
+    yuv_16bit = np.frombuffer(data[:expected_size], dtype=np.uint16)
+
+    # Reshape to semi-planar format
+    yuv_16bit = yuv_16bit.reshape((height * 3 // 2, effective_stride))
+
+    # Crop to actual width if stride is larger
+    if effective_stride > width:
+        yuv_16bit = yuv_16bit[:, :width]
+
+    # Convert 12-bit data (in 16-bit words) to 8-bit data by right-shifting by 4.
+    # This creates an 8-bit NV12-like image.
+    yuv_8bit = (yuv_16bit >> 4).astype(np.uint8)
+
+    # Use OpenCV to convert from NV12 (which is what yuv_8bit now is) to RGB
+    rgb = cv2.cvtColor(yuv_8bit, cv2.COLOR_YUV2RGB_NV12)
+
+    return rgb
+
 # Dictionary to map format strings to decoding functions
 DECODING_FUNCTIONS = {
     "RAW10": decode_raw10,
@@ -115,12 +292,17 @@ DECODING_FUNCTIONS = {
     "YV12": decode_yv12,   # Planar (V plane before U)
     "NV12": decode_nv12,   # Semi-Planar
     "NV21": decode_nv21,   # Semi-Planar (V and U swapped)
+    "P010": decode_p010,   # Semi-Planar 10-bit
+    "P012": decode_p012,   # Semi-Planar 12-bit
     # YUV422 Formats
     "YUYV": decode_yuyv,   # Packed
     "NV16": decode_nv16,   # Semi-Planar
     "NV61": decode_nv61,   # Semi-Planar (V and U swapped)
+    "NV20": decode_nv20,   # Semi-Planar 10-bit
     # YUV444 Formats
     "YUV444": decode_yuv444, # Planar
+    "NV24": decode_nv24,   # Semi-Planar
+    "NV42": decode_nv42,   # Semi-Planar (V and U swapped)
 }
 
 class TabImageViewer:
