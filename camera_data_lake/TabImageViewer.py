@@ -301,7 +301,7 @@ DECODING_FUNCTIONS = {
     "P012": decode_p012,   # Semi-Planar 12-bit
     # 3-Plane
     "I420": decode_i420,   # Planar
-    "YV12": decode_yv12,   # Planar (V plane before U)
+    "YV12": decode_yv12,   # Planar (V and U swapped)
     # --- YUV422 Formats ---
     # 1-Plane
     "YUYV": decode_yuyv,   # Packed
@@ -317,18 +317,45 @@ DECODING_FUNCTIONS = {
     "YUV444": decode_yuv444, # Planar
 }
 
+FORMAT_DISPLAY_NAMES = {
+    "RAW10": "RAW10 (1-Plane 10-bit)",
+    # YUV420
+    "NV12": "NV12 (YUV420 2-Plane)",
+    "NV21": "NV21 (YUV420 2-Plane, VU swapped)",
+    "P010": "P010 (YUV420 2-Plane, 10-bit)",
+    "P012": "P012 (YUV420 2-Plane, 12-bit)",
+    "I420": "I420 (YUV420 3-Plane)",
+    "YV12": "YV12 (YUV420 3-Plane, VU swapped)",
+    # YUV422
+    "YUYV": "YUYV (YUV422 1-Plane, Packed)",
+    "NV16": "NV16 (YUV422 2-Plane)",
+    "NV61": "NV61 (YUV422 2-Plane, VU swapped)",
+    "NV20": "NV20 (YUV422 2-Plane, 10-bit)",
+    # YUV444
+    "NV24": "NV24 (YUV444 2-Plane)",
+    "NV42": "NV42 (YUV444 2-Plane, VU swapped)",
+    "YUV444": "YUV444 (YUV444 3-Plane)",
+}
+
 class TabImageViewer:
     def render(self):
         st.header("Image Viewer")
 
         uploaded_file = st.file_uploader("Choose an image file", type=None)
 
+        # Create a list of display names in the correct order
+        format_options = [FORMAT_DISPLAY_NAMES.get(key, key) for key in DECODING_FUNCTIONS.keys()]
+        # Create a reverse map from display name to format key
+        format_key_map = {v: k for k, v in FORMAT_DISPLAY_NAMES.items()}
+
         # Sidebar for controls
         st.sidebar.header("Image Properties")
-        image_format = st.sidebar.selectbox(
+        selected_display_name = st.sidebar.selectbox(
             "Select Image Format",
-            list(DECODING_FUNCTIONS.keys())
+            format_options
         )
+        image_format = format_key_map.get(selected_display_name, selected_display_name)
+
         width = st.sidebar.number_input("Width", min_value=1, value=1920)
         height = st.sidebar.number_input("Height", min_value=1, value=1080)
         stride = st.sidebar.number_input("Stride", min_value=0, value=0, help="Set to 0 to use width as stride.")
