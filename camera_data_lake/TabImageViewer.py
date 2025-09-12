@@ -90,6 +90,11 @@ def decode_nv16(data, width, height, stride):
 def decode_nv61(data, width, height, stride):
     return decode_yuv422_sp(data, width, height, stride, cv2.COLOR_YUV2RGB_NV61)
 
+def decode_yv12(data, width, height, stride):
+    # YV12 is YUV420 Planar, with V plane before U plane.
+    # The memory layout is compatible with what decode_yuv expects for 420 formats.
+    return decode_yuv(data, width, height, stride, cv2.COLOR_YUV2RGB_YV12)
+
 def decode_yuv444(data, width, height, stride):
     effective_stride = stride if stride > 0 else width
     yuv_size = effective_stride * height * 3
@@ -110,6 +115,7 @@ DECODING_FUNCTIONS = {
     "NV16": decode_nv16,
     "NV61": decode_nv61,
     "I420": decode_i420,
+    "YV12": decode_yv12,
     "YUYV": decode_yuyv,
     "YUV444": decode_yuv444,
 }
