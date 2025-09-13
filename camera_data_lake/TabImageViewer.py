@@ -33,6 +33,41 @@ def decode_raw10_packed(data, width, height, stride):
     img_8bit = (unpacked_data >> 2).astype(np.uint8)
     return img_8bit
 
+def decode_raw10_unpacked(data, width, height, stride):
+    """
+    Decodes RAW10 unpacked data (10-bit data in 16-bit words).
+    """
+    # For unpacked RAW10, each pixel is 2 bytes.
+    effective_stride = stride if stride > 0 else width * 2
+
+    expected_size = height * effective_stride
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for RAW10 Unpacked. Expected at least {expected_size} bytes, but got {len(data)} bytes.")
+        return None
+
+    # Create a numpy array from the raw data, interpreting it as uint16
+    raw_16bit = np.frombuffer(data, dtype=np.uint16)
+
+    # Reshape and crop if necessary
+    stride_in_pixels = effective_stride // 2
+    expected_elements = height * stride_in_pixels
+
+    if len(raw_16bit) < expected_elements:
+        st.error(f"Cannot reshape array for RAW10 Unpacked. Not enough data elements for specified dimensions.")
+        return None
+
+    raw_16bit = raw_16bit[:expected_elements].reshape(height, stride_in_pixels)
+
+    # Crop to actual width if stride is larger
+    if stride_in_pixels > width:
+        raw_16bit = raw_16bit[:, :width]
+
+    # The data is 10-bit, stored in the lower bits of uint16.
+    # To normalize 10-bit (0-1023) to 8-bit (0-255), right-shift by 2.
+    img_8bit = (raw_16bit >> 2).astype(np.uint8)
+
+    return img_8bit
+
 def decode_raw12_packed(data, width, height, stride):
     """
     Decodes RAW12 packed data.
@@ -73,6 +108,41 @@ def decode_raw12_packed(data, width, height, stride):
 
     # Normalize 12-bit (0-4095) to 8-bit (0-255) by right-shifting by 4
     img_8bit = (unpacked_data >> 4).astype(np.uint8)
+    return img_8bit
+
+def decode_raw12_unpacked(data, width, height, stride):
+    """
+    Decodes RAW12 unpacked data (12-bit data in 16-bit words).
+    """
+    # For unpacked RAW12, each pixel is 2 bytes.
+    effective_stride = stride if stride > 0 else width * 2
+
+    expected_size = height * effective_stride
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for RAW12 Unpacked. Expected at least {expected_size} bytes, but got {len(data)} bytes.")
+        return None
+
+    # Create a numpy array from the raw data, interpreting it as uint16
+    raw_16bit = np.frombuffer(data, dtype=np.uint16)
+
+    # Reshape and crop if necessary
+    stride_in_pixels = effective_stride // 2
+    expected_elements = height * stride_in_pixels
+
+    if len(raw_16bit) < expected_elements:
+        st.error(f"Cannot reshape array for RAW12 Unpacked. Not enough data elements for specified dimensions.")
+        return None
+
+    raw_16bit = raw_16bit[:expected_elements].reshape(height, stride_in_pixels)
+
+    # Crop to actual width if stride is larger
+    if stride_in_pixels > width:
+        raw_16bit = raw_16bit[:, :width]
+
+    # The data is 12-bit, stored in the lower bits of uint16.
+    # To normalize 12-bit (0-4095) to 8-bit (0-255), right-shift by 4.
+    img_8bit = (raw_16bit >> 4).astype(np.uint8)
+
     return img_8bit
 
 def decode_yuv(data, width, height, stride, conversion_code):
@@ -335,7 +405,9 @@ def decode_yuv444(data, width, height, stride):
 # Dictionary to map format strings to decoding functions
 DECODING_FUNCTIONS = {
     "RAW10_PACKED": decode_raw10_packed,
+    "RAW10_UNPACKED": decode_raw10_unpacked,
     "RAW12_PACKED": decode_raw12_packed,
+    "RAW12_UNPACKED": decode_raw12_unpacked,
     # --- YUV420 Formats ---
     # 2-Plane
     "NV12": decode_nv12,   # Semi-Planar
@@ -362,7 +434,9 @@ DECODING_FUNCTIONS = {
 
 FORMAT_DISPLAY_NAMES = {
     "RAW10_PACKED": "RAW10 (1-Plane 10-bit, Packed)",
+    "RAW10_UNPACKED": "RAW10 (1-Plane 10-bit, Unpacked)",
     "RAW12_PACKED": "RAW12 (1-Plane 12-bit, Packed)",
+    "RAW12_UNPACKED": "RAW12 (1-Plane 12-bit, Unpacked)",
     # YUV420
     "NV12": "NV12 (YUV420 2-Plane)",
     "NV21": "NV21 (YUV420 2-Plane, VU swapped)",
