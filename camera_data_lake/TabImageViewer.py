@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import cv2
 
-def decode_raw10(data, width, height, stride):
+def decode_raw10_packed(data, width, height, stride):
     # For RAW10, stride is typically width * 10 / 8 = width * 5 / 4
     effective_stride = stride if stride > 0 else width * 5 // 4
 
@@ -31,6 +31,48 @@ def decode_raw10(data, width, height, stride):
 
     # Normalize 10-bit (0-1023) to 8-bit (0-255)
     img_8bit = (unpacked_data >> 2).astype(np.uint8)
+    return img_8bit
+
+def decode_raw12_packed(data, width, height, stride):
+    """
+    Decodes RAW12 packed data.
+    In this format, 2 pixels (12-bit each) are packed into 3 bytes.
+    """
+    # For RAW12 packed, stride is typically width * 12 / 8 = width * 3 / 2
+    effective_stride = stride if stride > 0 else width * 3 // 2
+
+    expected_size = height * effective_stride
+    if len(data) < expected_size:
+        st.error(f"Incorrect data size for RAW12. Expected at least {expected_size} bytes, but got {len(data)} bytes.")
+        return None
+
+    # Create a numpy array from the raw data
+    raw_data = np.frombuffer(data, dtype=np.uint8)
+
+    # Unpack the 12-bit data
+    packed_data = raw_data[:expected_size].reshape(height, effective_stride)
+    unpacked_data = np.zeros((height, width), dtype=np.uint16)
+
+    for r in range(height):
+        row_data = packed_data[r]
+        # Process 2 pixels (3 bytes) at a time
+        for c in range(width // 2):
+            base = c * 3
+            b0, b1, b2 = row_data[base:base+3]
+
+            # Unpack 2 pixels from 3 bytes
+            # A common packing is:
+            # Byte 0: P1[7:0]
+            # Byte 1: P2[7:0]
+            # Byte 2: P2[11:8] (upper nibble), P1[11:8] (lower nibble)
+            # So, B2 = (P2_msb << 4) | P1_msb
+            # P1 = B0 | ( (B2 & 0x0F) << 8 )
+            # P2 = B1 | ( (B2 & 0xF0) << 4 )
+            unpacked_data[r, c*2 + 0] = b0 | ((b2 & 0x0F) << 8)
+            unpacked_data[r, c*2 + 1] = b1 | ((b2 & 0xF0) << 4)
+
+    # Normalize 12-bit (0-4095) to 8-bit (0-255) by right-shifting by 4
+    img_8bit = (unpacked_data >> 4).astype(np.uint8)
     return img_8bit
 
 def decode_yuv(data, width, height, stride, conversion_code):
@@ -292,7 +334,8 @@ def decode_yuv444(data, width, height, stride):
 
 # Dictionary to map format strings to decoding functions
 DECODING_FUNCTIONS = {
-    "RAW10": decode_raw10,
+    "RAW10_PACKED": decode_raw10_packed,
+    "RAW12_PACKED": decode_raw12_packed,
     # --- YUV420 Formats ---
     # 2-Plane
     "NV12": decode_nv12,   # Semi-Planar
@@ -318,7 +361,8 @@ DECODING_FUNCTIONS = {
 }
 
 FORMAT_DISPLAY_NAMES = {
-    "RAW10": "RAW10 (1-Plane 10-bit)",
+    "RAW10_PACKED": "RAW10 (1-Plane 10-bit, Packed)",
+    "RAW12_PACKED": "RAW12 (1-Plane 12-bit, Packed)",
     # YUV420
     "NV12": "NV12 (YUV420 2-Plane)",
     "NV21": "NV21 (YUV420 2-Plane, VU swapped)",
